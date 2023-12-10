@@ -654,6 +654,43 @@ contract OutputBisection_1v1_Actors_Test is OutputBisectionGame_Init {
         super.setUp();
     }
 
+    /// @notice Fuzz test for a 1v1 output bisection dispute.
+    /// @dev The alphabet game has a constant status byte, and is not safe from someone being dishonest in
+    ///      output bisection and then posting a correct execution trace bisection root claim. This test
+    ///      does not cover this case (i.e. root claim of output bisection is dishonest, root claim of
+    ///      execution trace bisection is made by the dishonest actor but is honest, honest actor cannot
+    ///      attack it without risk of losing).
+    function testFuzz_outputBisection1v1honestRoot_succeeds(uint256 _randSeedA, uint256 _randSeedB) public {
+        uint256[] memory honestL2Outputs = new uint256[](16);
+        for (uint256 i; i < honestL2Outputs.length; i++) {
+            honestL2Outputs[i] = i + 1;
+        }
+        bytes memory honestTrace = new bytes(256);
+        for (uint256 i; i < honestTrace.length; i++) {
+            honestTrace[i] = bytes1(uint8(i));
+        }
+
+        uint256[] memory dishonestL2Outputs = new uint256[](16);
+        for (uint256 i; i < dishonestL2Outputs.length; i++) {
+            dishonestL2Outputs[i] = i >= _randSeedA % 16 ? 0xFF : i + 1;
+        }
+        bytes memory dishonestTrace = new bytes(256);
+        for (uint256 i; i < dishonestTrace.length; i++) {
+            dishonestTrace[i] = i >= _randSeedB % 128 ? bytes1(uint8(0xFF)) : bytes1(uint8(i));
+        }
+
+        // Run the actor test
+        _actorTest({
+            _rootClaim: 16,
+            _absolutePrestateData: 0,
+            _honestTrace: honestTrace,
+            _honestL2Outputs: honestL2Outputs,
+            _dishonestTrace: dishonestTrace,
+            _dishonestL2Outputs: dishonestL2Outputs,
+            _expectedStatus: GameStatus.DEFENDER_WINS
+        });
+    }
+
     /// @notice Static unit test for a 1v1 output bisection dispute.
     function test_static_1v1honestRootGenesisAbsolutePrestate_succeeds() public {
         // The honest l2 outputs are from [1, 16] in this game.

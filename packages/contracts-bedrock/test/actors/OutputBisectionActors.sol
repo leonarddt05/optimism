@@ -155,9 +155,10 @@ contract HonestGameSolver is GameSolver {
         returns (Direction direction_, Position movePos_)
     {
         bool rightLevel = isRightLevel(_claimData.position);
+        bool localAgree = Claim.unwrap(claimAt(_claimData.position)) == Claim.unwrap(_claimData.claim);
         if (_claimData.parentIndex == type(uint32).max) {
             // If we agree with the parent claim and it is on a level we agree with, ignore it.
-            if (Claim.unwrap(claimAt(_claimData.position)) == Claim.unwrap(_claimData.claim) && rightLevel) {
+            if (localAgree && rightLevel) {
                 return (Direction.Noop, Position.wrap(0));
             }
 
@@ -165,10 +166,18 @@ contract HonestGameSolver is GameSolver {
             direction_ = Direction.Attack;
             movePos_ = _claimData.position.move(true);
         } else {
+            // Never attempt to defend an execution trace subgame root. Only attack if we disagree with it,
+            // otherwise do nothing.
+            // NOTE: This is not correct behavior in the context of the honest actor; The alphabet game has
+            //       a constant status byte, and is not safe from someone being dishonest in output bisection
+            //       and then posting a correct execution trace bisection root claim.
+            if (_claimData.position.depth() == SPLIT_DEPTH + 1 && localAgree && rightLevel) {
+                return (Direction.Noop, Position.wrap(0));
+            }
+
             // If the parent claim is not the root claim, first check if the observed claim is on a level that
             // agrees with the local view of the root claim. If it is, noop. If it is not, perform an attack or
             // defense depending on the local view of the observed claim.
-
             if (rightLevel) {
                 // Never move against a claim on the right level. Even if it's wrong, if it's uncountered, it furthers
                 // our goals.
